@@ -1,32 +1,33 @@
 const express = require('express');
 const { spawn } = require('child_process');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/audio', async (req, res) => {
-  const videoUrl = req.query.url;
+app.use(cors()); // ✅ Permite que tu frontend acceda
 
-  if (!videoUrl || !videoUrl.startsWith('https://')) {
-    return res.status(400).send('URL de YouTube no válida');
+app.get('/audio', (req, res) => {
+  const videoUrl = req.query.url;
+  if (!videoUrl || !videoUrl.startsWith('http')) {
+    return res.status(400).send('URL inválida');
   }
 
   res.setHeader('Content-Type', 'audio/mpeg');
 
-  const process = spawn('yt-dlp', [
+  const ytdlp = spawn('yt-dlp', [
     '-f', 'bestaudio',
     '-o', '-',
-    '-q',
     videoUrl
   ]);
 
-  process.stdout.pipe(res);
+  ytdlp.stdout.pipe(res);
 
-  process.stderr.on('data', data => {
+  ytdlp.stderr.on('data', (data) => {
     console.error(`stderr: ${data}`);
   });
 
-  process.on('close', code => {
+  ytdlp.on('close', (code) => {
     if (code !== 0) {
       console.error(`yt-dlp exited with code ${code}`);
     }
@@ -34,9 +35,9 @@ app.get('/audio', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send(`<h1>Servidor activo</h1><p>Usa: /audio?url=https://www.youtube.com/watch?v=...</p>`);
+  res.send('Servidor activo. Usa /audio?url=...');
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor activo en puerto ${PORT}`);
+  console.log(`Servidor escuchando en puerto ${PORT}`);
 });

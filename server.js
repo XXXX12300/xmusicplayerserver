@@ -1,43 +1,20 @@
 const express = require('express');
-const { spawn } = require('child_process');
 const cors = require('cors');
-
+const { spawn } = require('child_process');
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(cors()); // ✅ Permite que tu frontend acceda
+app.use(cors());
 
 app.get('/audio', (req, res) => {
-  const videoUrl = req.query.url;
-  if (!videoUrl || !videoUrl.startsWith('http')) {
-    return res.status(400).send('URL inválida');
-  }
-
+  const url = req.query.url;
+  if (!url) return res.status(400).send('Missing URL');
   res.setHeader('Content-Type', 'audio/mpeg');
-
-  const ytdlp = spawn('yt-dlp', [
-    '-f', 'bestaudio',
-    '-o', '-',
-    videoUrl
-  ]);
-
+  const ytdlp = spawn('yt-dlp', ['-f', 'bestaudio', '-o', '-', url]);
   ytdlp.stdout.pipe(res);
-
-  ytdlp.stderr.on('data', (data) => {
-    console.error(`stderr: ${data}`);
-  });
-
-  ytdlp.on('close', (code) => {
-    if (code !== 0) {
-      console.error(`yt-dlp exited with code ${code}`);
-    }
+  ytdlp.stderr.on('data', data => console.error(`stderr: ${data}`));
+  ytdlp.on('close', code => {
+    if (code !== 0) console.error(`yt-dlp exited ${code}`);
   });
 });
 
-app.get('/', (req, res) => {
-  res.send('Servidor activo. Usa /audio?url=...');
-});
-
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en puerto ${PORT}`);
-});
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log('Running on port', port));

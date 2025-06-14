@@ -30,7 +30,7 @@ app.get("/download", async (req, res) => {
   } catch (error) {
     // Captura errores específicos de YouTube
     if (error.statusCode === 410) {
-      return res.status(404).send("El video no está disponible (eliminado o bloqueado).");
+      return res.status(404).send("El video no está disponible (eliminado o bloqueado). el hueso");
     }
 
     console.error("Error al obtener información del video:", error);

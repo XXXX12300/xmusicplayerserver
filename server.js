@@ -16,9 +16,9 @@ app.get("/download", async (req, res) => {
     const title = info.videoDetails.title.replace(/[^\w\s]/gi, "");
 
     res.header("Content-Disposition", `attachment; filename="${title}.mp3"`);
-    
+
     const stream = ytdl(videoURL, { quality: "lowestaudio" });
-    
+
     ffmpeg(stream)
       .audioBitrate(128)
       .format("mp3")
@@ -28,8 +28,13 @@ app.get("/download", async (req, res) => {
       })
       .pipe(res, { end: true });
   } catch (error) {
+    // Captura errores específicos de YouTube
+    if (error.statusCode === 410) {
+      return res.status(404).send("El video no está disponible (eliminado o bloqueado).");
+    }
+
     console.error("Error al obtener información del video:", error);
-    res.status(500).send("Error al procesar el video");
+    res.status(500).send("Error al procesar el video AAAAAAAAAAA Soy muy gay");
   }
 });
 

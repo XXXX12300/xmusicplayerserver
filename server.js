@@ -1,32 +1,48 @@
-const express = require('express');
-const cors = require('cors');
-const { spawn } = require('child_process');
-
+const express = require("express");
+const ytdl = require("ytdl-core");
+const ffmpeg = require("fluent-ffmpeg");
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 3000;
 
-app.get('/audio', (req, res) => {
-  const url = req.query.url;
-  if (!url) return res.status(400).send('Missing URL');
+app.get("/download", async (req, res) => {
+  const videoURL = req.query.url;
 
-  res.setHeader('Content-Type', 'audio/mpeg');
+  if (!videoURL || !ytdl.validateURL(videoURL)) {
+    return res.status(400).send("URL de YouTube inválida");
+  }
 
-  const ytdlp = spawn('yt-dlp', ['-f', 'bestaudio', '-o', '-', url]);
+  try {
+    const info = await ytdl.getInfo(videoURL);
+    const title = info.videoDetails.title.replace(/[^\w\s]/gi, "");
 
-  ytdlp.stdout.pipe(res);
-
-  ytdlp.stderr.on('data', data => {
-    console.error(`stderr: ${data}`);
-  });
-
-  ytdlp.on('close', code => {
-    if (code !== 0) {
-      console.error(`yt-dlp exited with code ${code}`);
-    }
-  });
+    res.header("Content-Disposition", `attachment; filename="${title}.mp3"`);
+    
+    const stream = ytdl(videoURL, { quality: "lowestaudio" });
+    
+    ffmpeg(stream)
+      .audioBitrate(128)
+      .format("mp3")
+      .on("error", (err) => {
+        console.error("Error en ffmpeg:", err.message);
+        res.status(500).send("Error al convertir el audio");
+      })
+      .pipe(res, { end: true });
+  } catch (error) {
+    console.error("Error al obtener información del video:", error);
+    res.status(500).send("Error al procesar el video");
+  }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log('Server running on port', port);
+app.get("/", (req, res) => {
+  res.send(`
+    <h1>YouTube Audio Downloader</h1>
+    <form action="/download" method="GET">
+      <input type="text" name="url" placeholder="Pega la URL de YouTube aquí" size="50"/>
+      <button type="submit">Descargar Audio</button>
+    </form>
+  `);
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor escuchando en puerto ${PORT}`);
 });

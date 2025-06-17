@@ -1,53 +1,37 @@
-const express = require("express");
-const ytdl = require("ytdl-core");
-const ffmpeg = require("fluent-ffmpeg");
+import express from 'express';
+import { exec } from 'child_process';
+import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(cors());
+app.use(express.json());
 
-app.get("/download", async (req, res) => {
-  const videoURL = req.query.url;
+const SONGS_DIR = path.join(__dirname, 'songs');
+if (!fs.existsSync(SONGS_DIR)) fs.mkdirSync(SONGS_DIR);
 
-  if (!videoURL || !ytdl.validateURL(videoURL)) {
-    return res.status(400).send("URL de YouTube inválida");
-  }
+app.post('/download', (req, res) => {
+    const url = req.body.url;
+    if (!url) return res.status(400).json({ error: 'No URL provided' });
 
-  try {
-    const info = await ytdl.getInfo(videoURL);
-    const title = info.videoDetails.title.replace(/[^\w\s]/gi, "");
+    const command = `yt-dlp -x --audio-format mp3 -o "songs/%(title)s.%(ext)s" ${url}`;
+    exec(command, (err, stdout, stderr) => {
+        if (err) return res.status(500).json({ error: 'Download failed', details: stderr });
 
-    res.header("Content-Disposition", `attachment; filename="${title}.mp3"`);
-
-    const stream = ytdl(videoURL, { quality: "lowestaudio" });
-
-    ffmpeg(stream)
-      .audioBitrate(128)
-      .format("mp3")
-      .on("error", (err) => {
-        console.error("Error en ffmpeg:", err.message);
-        res.status(500).send("Error al convertir el audio");
-      })
-      .pipe(res, { end: true });
-  } catch (error) {
-    // Captura errores específicos de YouTube
-    if (error.statusCode === 410) {
-      return res.status(404).send("El video no está disponible (eliminado o bloqueado). el hueso");
-    }
-
-    console.error("Error al obtener información del video:", error);
-    res.status(500).send("Error al procesar el video AAAAAAAAAAA Soy muy gay");
-  }
+        const match = stdout.match(/songs\/(.+\.mp3)/);
+        if (match) {
+            const filename = match[1].trim();
+            const downloadUrl = `/songs/${filename}`;
+            return res.json({ downloadUrl });
+        } else {
+            return res.status(500).json({ error: 'MP3 not found in output' });
+        }
+    });
 });
 
-app.get("/", (req, res) => {
-  res.send(`
-    <h1>YouTube Audio Downloader</h1>
-    <form action="/download" method="GET">
-      <input type="text" name="url" placeholder="Pega la URL de YouTube aquí" size="50"/>
-      <button type="submit">Descargar Audio</button>
-    </form>
-  `);
-});
+app.use('/songs', express.static('songs'));
 
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en puerto ${PORT}`);
+app.listen(3000, () => {
+    console.log('Servidor en http://localhost:3000');
 });
